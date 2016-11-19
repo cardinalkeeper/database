@@ -1,0 +1,33 @@
+{
+  "description": "Кардинал Кипер: Схема базы данных и тестовые данные",
+  "author": "Khusamov Sukhrob <khusamov@yandex.ru>",
+  "name": "cardinalkeeper-database",
+  "license": "GPL-3.0",
+  "version": "0.0.1",
+  "main": "index.js",
+  "scripts": {
+    "start": "NODE_PATH=./modules nodemon --debug index.js",
+    "build": "",
+    "serve": ""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:cardinalkeeper/database.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cardinalkeeper/database/issues",
+    "email": "khusamov@yandex.ru"
+  },
+  "engines": {
+    "node": "^7.1.0"
+  },
+  "dependencies": {
+    "commander": "^2.9.0",
+    "load-pkg": "^3.0.1",
+    "lodash": "^4.17.2",
+    "pg-promise": "^5.3.5"
+  },
+  "devDependencies": {
+    "nodemon": "^1.9.2"
+  }
+}
