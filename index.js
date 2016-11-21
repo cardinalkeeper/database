@@ -14,12 +14,23 @@ program.version(programPackage.version);
 	//.option("-l, --last", "Накатить последнюю версию миграции")
 	//.parse(process.argv);
 	
+/**
+ * Общие функции.
+ */
 
-
-function readdir(dirname) {
+/*function readdir(dirname) {
 	return new Promise((resolve, reject) => {
 		fs.readdir(dirname, (err, files) => {
 			if (err) reject(err); else resolve(files);
+		});
+	});
+}
+
+function readdirOnlyFiles(dirname) {
+	return readdir(dirname).then(files => {
+		return files.filter(filename => {
+			filename = path.join(dirname, filename);
+			return fs.statSync(filename).isFile();
 		});
 	});
 }
@@ -30,75 +41,129 @@ function onError(err) {
 	process.exit(1);
 }
 
-const config = require("./config");
-
-
-const db = pgp(config.db);
-
-const dirUpMigration = path.join(__dirname, "migrations");
-//const dirUpMigration = path.join(__dirname, "temp/migrations");
-
-program
-	.command("last")
-	.description("Накатить последнюю версию миграции")
-	.action(function() {
-		
-		readdir(dirUpMigration).then(files => {
-			
-			files = files.sort((a, b) => (a < b) ? -1 : (a > b) ? 1 : 0);
-			
-			const lastfile = _.last(files);
-			
-			
-			const lastMigrationVersion = path.basename(lastfile, path.extname(lastfile));
-			
-			return db.oneOrNone("select count(*) as count from migration_history where version = $1", lastMigrationVersion, m => !!(m && m.count)).then(has => {
-				
-				console.log(has);
-				process.exit(0);
-			});
-
-			
-			
-			
-		}).catch(onError);
+function checkInstalledDatabase() {
+	return db.oneOrNone("select count(*) as count from migration_history", m => !!(m && m.count)).then(has => {
+		return true;
+	}).catch(none => {
+		return false;
 	});
+}*/
+
+/**
+ * Глобальные данные.
+ */
+
+const config = require("./config/config.json");
+
+const reg = {
+	config: config,
+	pgp: pgp,
+	db: pgp(config.db),
+	dirUpMigration: path.join(__dirname, "migrations")
+};
+
+/*const db = pgp(config.db);
+
+const dirUpMigration = path.join(__dirname, "migrations");*/
+
+	
+/**
+ * Обработчики команд.
+ */
+
+["install", "update"].forEach(cmd => {
+	const commandConf = require(`./commands/${cmd}`)(reg);
+	program
+		.command(commandConf.command)
+		.description(commandConf.description)
+		.action(commandConf.action);
+});
 
 
+
+/*
 program
 	.command("install")
 	.description("Создать всю схему базы данных")
 	.action(function() {
-		console.log("Инсталяция базы данных.");
-
-		// TODO Сделать проверку инсталирована база или нет
-		
-		readdir(dirUpMigration).then(files => {
-			files = files.sort((a, b) => (a < b) ? -1 : (a > b) ? 1 : 0);
-			
-			const queries = [];
-			files.forEach(filename => {
-				filename = path.join(dirUpMigration, filename);
-				queries.push(db.none(new pgp.QueryFile(filename)));
-			});
-			
-			return Promise.all(queries).then(result => {
-				console.log("Обработано файлов:", result.length);
-				console.log("Инсталяция завершена.");
-				process.exit(0);
-			});
+		console.log("\nИнсталяция схемы базы данных:");
+		checkInstalledDatabase().then(installed => {
+			if (installed) {
+				console.log("Инсталяция невозможна. База данных уже установлена.");
+				return;
+			} else {
+				return readdirOnlyFiles(dirUpMigration).then(files => {
+					files = files.sort((a, b) => (a < b) ? -1 : (a > b) ? 1 : 0);
+					
+					const lastfile = _.last(files);
+					const lastNewMigrationVersion = path.basename(lastfile, path.extname(lastfile));
+					
+					const queries = [];
+					files.forEach(filename => {
+						filename = path.join(dirUpMigration, filename);
+						queries.push(db.none(new pgp.QueryFile(filename)));
+					});
+					
+					return Promise.all(queries).then(result => {
+						console.log("Обработано SQL-файлов миграции:", result.length);
+						console.log("Версия последней миграции:", lastNewMigrationVersion);
+						console.log("Инсталяция завершена.");
+					});
+				});
+			}
+		}).then(none => {
+			process.exit(0);
 		}).catch(onError);
+		
 	});
 
+program
+	.command("update")
+	.description("Обновить схему базы данных до последней версии")
+	.action(function() {
+		console.log("\nОбновление схемы базы данных:");
+		checkInstalledDatabase().then(installed => {
+			if (!installed) {
+				console.log("Обновление невозможно. База данных не установлена.");
+				return;
+			} else {
+				return Promise.all([
+					readdirOnlyFiles(dirUpMigration),
+					db.one("select * from migration_history order by version desc", null, m => m.version)
+				]).then(([files, lastMigrationVersion]) => {
+					const lastfile = _.last(files);
+					const lastNewMigrationVersion = path.basename(lastfile, path.extname(lastfile));
+					if (lastMigrationVersion == lastNewMigrationVersion) {
+						console.log("Обновлять нечего. В базе уже установлена последняя миграция");
+						return;
+					} else {
+						files = files.sort((a, b) => (a < b) ? -1 : (a > b) ? 1 : 0);
+						const queries = [], processedMigrations = [];
+						files.forEach(filename => {
+							const migrationVersion = path.basename(filename, path.extname(filename));
+							filename = path.join(dirUpMigration, filename);
+							if (migrationVersion > lastMigrationVersion) {
+								queries.push(db.none(new pgp.QueryFile(filename)));
+								processedMigrations.push(migrationVersion);
+							}
+						});
+						return Promise.all(queries).then(result => {
+							console.log("Обработано SQL-файлов миграции:", processedMigrations.length);
+							console.log("Установлены миграции:", processedMigrations);
+							console.log("Обновление завершено.");
+						});
+					}
+				});
+			}
+		}).then(none => {
+			process.exit(0);
+		}).catch(onError);
+	});
+*/
 
-
-
-
-
-
-
-
-
+/**
+ * Обработка командной строки.
+ */
 
 
 program.parse(process.argv);
