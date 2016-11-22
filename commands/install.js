@@ -13,6 +13,8 @@ module.exports = function(reg) {
 		command: "install",
 		description: "Создать всю схему базы данных",
 		action: function() {
+			
+			func.printDatabaseConnection(reg.config);
 		
 			console.log("\nИнсталяция схемы базы данных:");
 			

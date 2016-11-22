@@ -37,6 +37,10 @@ function checkInstalledDatabase(db) {
 	});
 }
 
+function printDatabaseConnection(config) {
+	console.log(`Соединяемся с базой: ${config.db.host}:${config.db.port}/${config.db.database}`);
+}
+
 module.exports = {
 	readdir, readdirOnlyFiles, onError, checkInstalledDatabase
 };

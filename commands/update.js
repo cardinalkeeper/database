@@ -13,6 +13,8 @@ module.exports = function(reg) {
 		command: "update",
 		description: "Обновить схему базы данных до последней версии",
 		action: function() {
+			
+			func.printDatabaseConnection(reg.config);
 		
 			console.log("\nОбновление схемы базы данных:");
 			
